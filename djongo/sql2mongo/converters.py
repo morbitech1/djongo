@@ -83,48 +83,55 @@ class AggColumnSelectConverter(ColumnSelectConverter):
         has_agg_distinct = any(getattr(selected, 'is_agg_distinct', False) for selected in self.sql_tokens)
 
         ## FIX: agg(distinct) handler
-        if has_agg_distinct:
-            pipelines, keys = [], []
-            for selected in self.sql_tokens:
-                if isinstance(selected, SQLFunc):
-                    ## FIX: issue occurs when there's no explicit alias and we're dealing with FROM(subquery)
-                    key = selected.alias or str(selected.__hash__())
-                    if getattr(selected, 'is_agg_distinct', False):
-                        field = f'${selected.column}' if selected.column == selected.table else f'${selected.field}'
-                        group1 = {'_id': field, key: selected.to_mongo()}
-                        group2 = {'_id': None, key: ast.literal_eval(str(selected.to_mongo()).replace(field, f'${key}'))}
-                        pipeline = [{'$group': group1}, {'$group': group2}]
-                    else:
-                        group[key] = selected.to_mongo()
-                        pipeline = [{'$group': group}]
-                else:
-                    key = selected.field
-                    pipeline = [{'$group': group}]
-                project[key] = True
-                keys.append(key)
-                pipelines.append(pipeline)
+        pipeline = self._handle_agg_distinct(group, project) if has_agg_distinct \
+                            else self._handle_agg(group, project)
 
-            if len(pipelines) > 1:
-                facet, project = {}, {}
-                for idx, pipeline in enumerate(pipelines):
-                    facet[str(idx)] = pipeline
-                    project[keys[idx]] = {'$arrayElemAt': [ f"${idx}.{keys[idx]}", 0]}
-                final_pipeline = [{'$facet': facet}, {'$project': project}]
+        return pipeline
+
+    def _get_alias(self, token):
+        return token.alias or str(token.__hash__())
+
+    def _handle_agg_distinct_token(self, token, group, project):
+        if isinstance(token, SQLFunc) and getattr(token, 'is_agg_distinct', False):
+            # token = agg(distinct col)
+            key = self._get_alias(token)
+            field = f'${token.column}' if token.column == token.table else f'${token.field}'
+            group1 = {'_id': field, key: token.to_mongo()}
+            group2 = {'_id': None, key: ast.literal_eval(str(token.to_mongo()).replace(field, f'${key}'))}
+            pipeline = [{'$group': group1}, {'$group': group2}]
+        elif isinstance(token, SQLFunc) and not getattr(token, 'is_agg_distinct', False):
+            # token = agg(col)
+            key = self._get_alias(token)
+            group[key] = token.to_mongo()
+            pipeline = [{'$group': group}]
+        else: # token = col
+            key = token.field
+            pipeline = [{'$group': group}]
+        project[key] = True
+        return pipeline, key
+
+    def _handle_agg_distinct(self, group, project):
+        pipelines, keys = zip(*[self._handle_agg_distinct_token(token, group, project) for token in self.sql_tokens])
+
+        if len(pipelines) == 1: 
+            return pipelines[0] + [{'$project': project}]
+
+        # use $facet when there are multiple selected columns
+        facet, project = {}, {}
+        for idx, pipeline in enumerate(pipelines):
+            facet[str(idx)] = pipeline
+            project[keys[idx]] = {'$arrayElemAt': [ f"${idx}.{keys[idx]}", 0]}
+        return [{'$facet': facet}, {'$project': project}]
+        
+    def _handle_agg(self, group, project):
+        for selected in self.sql_tokens:
+            if isinstance(selected, SQLFunc):
+                alias = self._get_alias(selected)
+                group[alias] = selected.to_mongo()
+                project[alias] = True
             else:
-                final_pipeline = pipelines[0] + [{'$project': project}]
-        else: # no agg distinct tokens
-            for selected in self.sql_tokens:
-                if isinstance(selected, SQLFunc):
-                    ## FIX: issue occurs when there's no explicit alias and we're dealing with FROM(subquery)
-                    alias = selected.alias or str(selected.__hash__())
-                    group[alias] = selected.to_mongo()
-                    project[alias] = True
-                else:
-                    project[selected.field] = True
-            final_pipeline = [{'$group': group}, {'$project': project}]
-
-        return final_pipeline
-
+                project[selected.field] = True
+        return [{'$group': group}, {'$project': project}]
 
 class FromConverter(Converter):
 
