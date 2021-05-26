@@ -71,10 +71,10 @@ class _UnaryOp(_Op):
 
 class _BinaryOp(_Op):
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, token='prev_token', **kwargs):
         super().__init__(*args, **kwargs)
-        identifier = SQLToken.token2sql(self.statement.prev_token, self.query)
-        self._field = identifier.field
+        identifier = SQLToken.token2sql(getattr(self.statement, token), self.query)
+        self._field = f"{identifier.left_table}.{identifier.left_column}"
 
     def negate(self):
         raise SQLDecodeError('Negating IN/NOT IN not supported')
@@ -84,6 +84,7 @@ class _BinaryOp(_Op):
 
     def evaluate(self):
         pass
+
 
 class _InNotInOp(_BinaryOp):
 
@@ -97,7 +98,7 @@ class _InNotInOp(_BinaryOp):
             self.query.nested_query = NestedInQueryConverter(token, self.query, 0)
             return
 
-        for index in SQLToken.token2sql(token, self.query):
+        for index in SQLToken.token2sql(token.tokens[-1], self.query):
             if index is not None:
                 self._in.append(self.params[index])
             else:
@@ -141,9 +142,9 @@ class NotInOp(_InNotInOp):
 
 class InOp(_InNotInOp):
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(name='IN', *args, **kwargs)
-        self._fill_in(self.statement.next())
+    def __init__(self, *args, token='prev_token', **kwargs):
+        super().__init__(name='IN', *args, token=token, **kwargs)
+        self._fill_in(getattr(self.statement, token))
 
     def to_mongo(self):
         op = '$in' if not self.is_negated else '$nin'
@@ -369,8 +370,8 @@ class _StatementParser:
         elif tok.match(tokens.Keyword, 'OR'):
             op = OrOp(**kw)
 
-        elif tok.match(tokens.Keyword, 'IN'):
-            op = InOp(**kw)
+        elif any(t.match(tokens.Comparison, 'IN') for t in [tok, *getattr(tok, 'tokens', [])]):
+            op = InOp(**kw, token='current_token')
 
         elif tok.match(tokens.Keyword, 'NOT'):
             if statement.next_token.match(tokens.Keyword, 'IN'):
