@@ -74,7 +74,7 @@ class _BinaryOp(_Op):
     def __init__(self, *args, token='prev_token', **kwargs):
         super().__init__(*args, **kwargs)
         identifier = SQLToken.token2sql(getattr(self.statement, token), self.query)
-        self._field = f"{identifier.left_table}.{identifier.left_column}"
+        self._field = identifier.left_column
 
     def negate(self):
         raise SQLDecodeError('Negating IN/NOT IN not supported')
