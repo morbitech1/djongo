@@ -471,6 +471,8 @@ class _StatementParser:
                 op.rhs.lhs = op.lhs
             return False
 
+        self._ops = [op for op in self._ops if unlink_col_op(op)]
+
         op = None
         while self._ops:
             op = self._ops.pop(0)
