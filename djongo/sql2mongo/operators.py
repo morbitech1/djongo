@@ -409,7 +409,7 @@ class _StatementParser:
             pass
 
         elif isinstance(tok, Identifier):
-            pass
+            op = ColOp(tok, self.query)
         else:
             raise SQLDecodeError
 
@@ -459,6 +459,17 @@ class _StatementParser:
 
         if not self._ops:
             raise SQLDecodeError
+
+        ## Fix for boolean fields
+        def unlink_col_op(op):
+            if not isinstance(op, ColOp) or \
+                (isinstance(op, ColOp) and not isinstance(op.rhs, (LikeOp, iLikeOp, BetweenOp, IsOp, NotOp, InOp))):
+                return True
+            if op.lhs:
+                op.lhs.rhs = op.rhs
+            if op.rhs:
+                op.rhs.lhs = op.lhs
+            return False
 
         op = None
         while self._ops:
@@ -531,6 +542,28 @@ class CmpOp(_Op):
             return {field: {self._operator: self._constant}}
         else:
             return {field: {'$not': {self._operator: self._constant}}}
+
+
+## Fix for boolean fields
+class ColOp(_Op):
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._identifier = SQLToken.token2sql(self.statement, self.query)
+
+    def negate(self):
+        self.is_negated = True
+
+    def to_mongo(self):
+        field = self._identifier.field
+
+        if not self.is_negated:
+            return {field: True}
+        else:
+            return {field: False}
+
+    def evaluate(self):
+        pass
 
 
 OPERATOR_MAP = {
