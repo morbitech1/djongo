@@ -2,24 +2,18 @@ import re
 import typing
 from itertools import chain
 
+from sqlparse import parse as sqlparse
 from sqlparse import tokens
-from sqlparse.sql import Token, Parenthesis, Comparison, IdentifierList, Identifier, Function
+from sqlparse.sql import Token, Parenthesis, Comparison, IdentifierList, Identifier
 
-from ..exceptions import SQLDecodeError
-from .sql_tokens import SQLToken, SQLStatement
 from . import query
+from .sql_tokens import SQLToken, SQLStatement, SQLComparison
+from ..exceptions import SQLDecodeError
 
 
 def re_index(value: str):
     match = re.match(r'%\(([0-9]+)\)s', value, flags=re.IGNORECASE)
-    if match:
-        index = int(match.group(1))
-    else:
-        match = re.match(r'NULL', value, flags=re.IGNORECASE)
-        if not match:
-            raise SQLDecodeError
-        index = None
-    return index
+    return match and int(match.group(1))
 
 
 class _Op:
@@ -74,7 +68,7 @@ class _BinaryOp(_Op):
     def __init__(self, *args, token='prev_token', **kwargs):
         super().__init__(*args, **kwargs)
         identifier = SQLToken.token2sql(getattr(self.statement, token), self.query)
-        self._field = identifier.left_column
+        self._field = getattr(identifier, "field", getattr(identifier, "left_column", None))
 
     def negate(self):
         raise SQLDecodeError('Negating IN/NOT IN not supported')
@@ -98,7 +92,7 @@ class _InNotInOp(_BinaryOp):
             self.query.nested_query = NestedInQueryConverter(token, self.query, 0)
             return
 
-        for index in SQLToken.token2sql(token.tokens[-1], self.query):
+        for index in SQLToken.token2sql(token, self.query):
             if index is not None:
                 self._in.append(self.params[index])
             else:
@@ -144,7 +138,7 @@ class InOp(_InNotInOp):
 
     def __init__(self, *args, token='prev_token', **kwargs):
         super().__init__(name='IN', *args, token=token, **kwargs)
-        self._fill_in(getattr(self.statement, token))
+        self._fill_in(getattr(self.statement, token)[-1])
 
     def to_mongo(self):
         op = '$in' if not self.is_negated else '$nin'
@@ -410,7 +404,9 @@ class _StatementParser:
             pass
 
         elif isinstance(tok, Identifier):
-            pass
+            ntok = statement.next_token
+            if not (ntok and ntok.match(tokens.Keyword, ['IS', 'IN', 'LIKE', 'iLIKE', 'BETWEEN'])):
+                op = CmpOp(sqlparse(f"{tok} = '1'")[0][0], self.query)
         else:
             raise SQLDecodeError
 
@@ -516,6 +512,9 @@ class CmpOp(_Op):
             self._field_ext, self._constant = next(iter(self._constant.items()))
         else:
             self._field_ext = None
+        if self._constant is None and re.match(r"'(0|1)'", self.statement.right.value):
+            self._constant = bool(int(self.statement.right.value[1]))
+
 
     def negate(self):
         self.is_negated = True
