@@ -13,7 +13,14 @@ from ..exceptions import SQLDecodeError
 
 def re_index(value: str):
     match = re.match(r'%\(([0-9]+)\)s', value, flags=re.IGNORECASE)
-    return match and int(match.group(1))
+    if match:
+        index = int(match.group(1))
+    else:
+        match = re.match(r'NULL', value, flags=re.IGNORECASE)
+        if not match:
+            raise SQLDecodeError
+        index = None
+    return index
 
 
 class _Op:
@@ -522,8 +529,6 @@ class CmpOp(_Op):
             self._field_ext, self._constant = next(iter(self._constant.items()))
         else:
             self._field_ext = None
-        if self._constant is None and re.match(r"'(0|1)'", self.statement.right.value):
-            self._constant = bool(int(self.statement.right.value[1]))
 
 
     def negate(self):
