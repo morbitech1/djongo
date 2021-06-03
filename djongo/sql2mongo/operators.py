@@ -462,8 +462,7 @@ class _StatementParser:
 
         ## Fix for boolean fields
         def unlink_col_op(op):
-            if not isinstance(op, ColOp) or \
-                (isinstance(op, ColOp) and not isinstance(op.rhs, (LikeOp, iLikeOp, BetweenOp, IsOp, NotOp, InOp))):
+            if isinstance(op, ColOp) and not isinstance(op.rhs, (LikeOp, iLikeOp, BetweenOp, IsOp, NotOp, InOp)):
                 return True
             if op.lhs:
                 op.lhs.rhs = op.rhs
@@ -557,12 +556,7 @@ class ColOp(_Op):
         self.is_negated = True
 
     def to_mongo(self):
-        field = self._identifier.field
-
-        if not self.is_negated:
-            return {field: True}
-        else:
-            return {field: False}
+        return {self._identifier.field: not self.is_negated}
 
     def evaluate(self):
         pass
