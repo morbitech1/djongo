@@ -170,7 +170,8 @@ class SelectQuery(DQLQuery):
             return
 
         for doc in cursor:
-            yield self._align_results(doc)
+            if doc:
+                yield self._align_results(doc)
         return
 
     def count(self):
