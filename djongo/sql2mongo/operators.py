@@ -417,7 +417,7 @@ class _StatementParser:
 
         elif isinstance(tok, Identifier):
             t = statement.next_token
-            if not t or isinstance(t, Parenthesis):
+            if not t or t.match(tokens.Punctuation, (')', '(')):
                 op = ColOp(tok, self.query)
         else:
             raise SQLDecodeError
