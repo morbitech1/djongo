@@ -6,7 +6,7 @@ from sqlparse import tokens
 from sqlparse.sql import Token, Parenthesis, Comparison, IdentifierList, Identifier
 
 from . import query
-from .sql_tokens import SQLToken, SQLStatement
+from .sql_tokens import SQLToken, SQLStatement, SQLComparison, SQLIdentifier
 from ..exceptions import SQLDecodeError
 
 
@@ -73,8 +73,13 @@ class _BinaryOp(_Op):
 
     def __init__(self, *args, token='prev_token', **kwargs):
         super().__init__(*args, **kwargs)
-        identifier = SQLToken.token2sql(getattr(self.statement, token), self.query)
-        self._field = getattr(identifier, "field", getattr(identifier, "left_column", None))
+        tok = SQLToken.token2sql(getattr(self.statement, token), self.query)
+        if isinstance(tok, SQLIdentifier):
+            self._field = tok.field
+        elif isinstance(tok, SQLComparison):
+            self._field = SQLIdentifier(tok._token.left, tok.query).field
+        else:
+            raise SQLDecodeError(f'Unexpected token: {tok}')
 
     def negate(self):
         raise SQLDecodeError('Negating IN/NOT IN not supported')
