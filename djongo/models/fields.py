@@ -144,6 +144,9 @@ class JSONField(MongoField):
             return transform
         return KeyTransformFactory(name)
 
+    def value_to_string(self, obj):
+        return self.value_from_object(obj)
+
 
 class DjongoOperatorLookup(FieldGetDbPrepValueMixin, Lookup):
     djongo_operator = None
