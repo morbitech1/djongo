@@ -189,6 +189,7 @@ sqls = [
 
 t1c1 = '"table1"."col1"'
 t1c2 = '"table1"."col2"'
+t1c3 = '"table1"."col3"'
 t1c1c1 = '"table1"."col1"."col11"'
 t1c1c1c1 = '"table1"."col1"."col11"."col111"'
 t1c3c3c3 = '"table1"."col3"."col33"."col333"'
@@ -1974,7 +1975,7 @@ class TestQueryNestedIn(ResultQuery):
 
 class TestQueryJsonOp(ResultQuery):
     return_val = [
-        {'_id': 'x', 'col2': 'shouldReturn', 'col1': {'col11': {'col111': [1, 2, 3]}}},
+        {'_id': 'x', 'col2': 'shouldReturn', 'col3': 'shouldReturn', 'col1': {'col11': {'col111': [1, 2, 3]}}},
     ]
     ans = [('x', {'col11': {'col111': [1, 2, 3]}}, 'shouldReturn')]
 
@@ -2194,6 +2195,47 @@ class TestQueryJsonOp(ResultQuery):
         find.assert_any_call(**find_args)
         self.assertEqual(actual, ans)
         conn.reset_mock()
+
+    def test_pattern9(self):
+        """Don't add $ on a placeholder string value"""
+        conn = self.conn
+        find = self.find
+        iter = self.iter
+
+        self.sql = f"""SELECT "table1._id", {t1c1}, {t1c2} FROM {t1} WHERE {t1c2} $exact %(0)s"""
+        find_args = {
+            'filter': {'$expr': {'$eq': ['$col2', 'shouldReturn']}},
+            'projection': {'_id': '$_id', 'col1': '$col1', 'col2': '$col2'},
+        }
+        self.params = ['shouldReturn']
+        iter.return_value = self.return_val
+        actual = self.eval_find()
+        find.assert_any_call(**find_args)
+        self.assertEqual(actual, self.ans)
+
+        conn.reset_mock()
+
+        conn.reset_mock()
+
+    def test_pattern10(self):
+        """Add $ on a column name"""
+        conn = self.conn
+        find = self.find
+        iter = self.iter
+
+        self.sql = f"""SELECT "table1._id", {t1c1}, {t1c2} FROM {t1} WHERE {t1c2} $exact {t1c3}"""
+        find_args = {
+            'filter': {'$expr': {'$eq': ['$col2', '$col3']}},
+            'projection': {'_id': '$_id', 'col1': '$col1', 'col2': '$col2'},
+        }
+        self.params = []
+        iter.return_value = self.return_val
+        actual = self.eval_find()
+        find.assert_any_call(**find_args)
+        self.assertEqual(actual, self.ans)
+
+        conn.reset_mock()
+
 
 
 class TestQueryLen(ResultQuery):
