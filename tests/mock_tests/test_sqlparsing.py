@@ -1975,9 +1975,44 @@ class TestQueryNestedIn(ResultQuery):
 
 class TestQueryJsonOp(ResultQuery):
     return_val = [
-        {'_id': 'x', 'col2': 'shouldReturn', 'col3': 'shouldReturn', 'col1': {'col11': {'col111': [1, 2, 3]}}},
+        {
+            '_id': 'x', 'col2': 'shouldReturn', 'col3': 'shouldReturn', 'col1': {'col11': {'col111': [1, 2, 3]}},
+            'additional_permissions': [{'group': 'some_pk'}]
+        },
     ]
     ans = [('x', {'col11': {'col111': [1, 2, 3]}}, 'shouldReturn')]
+
+    def test_pattern0(self):
+        """$exact
+        qs.filter(additional_permissions__group='some_pk')
+        To query a collection with docs like [
+            {'additional_permissions': [{'group': 'some_pk'}]}
+        ]
+        """
+        conn = self.conn
+        find = self.find
+        iter = self.iter
+        self.sql = f"""SELECT "table1._id", {t1c1}, {t1c2} FROM {t1} WHERE "table1"."additional_permissions"."group" $exact %(0)s"""
+
+        find_args = {
+            'filter': {
+                '$expr': {
+                    '$cond': [
+                        {'$eq': [{'$type': '$additional_permissions'}, 'array']},
+                        {'$in': ['some_pk', '$additional_permissions.group']},
+                        {'$eq': ['$additional_permissions.group', 'some_pk']}
+                    ]
+                }
+            },
+            'projection': {'_id': '$_id', 'col1': '$col1', 'col2': '$col2'},
+        }
+
+        self.params = ['some_pk']
+        iter.return_value = self.return_val
+        actual = self.eval_find()
+        find.assert_any_call(**find_args)
+        self.assertEqual(actual, self.ans)
+        conn.reset_mock()
 
     def test_pattern1(self):
         """$exact
@@ -1994,7 +2029,11 @@ class TestQueryJsonOp(ResultQuery):
         find_args = {
             'filter': {
                 '$expr': {
-                    '$eq': ['$col1.col11', {'col111': [1, 2, 3]}]
+                    '$cond': [
+                        {'$eq': [{'$type': '$col1'}, 'array']},
+                        {'$in': [{'col111': [1, 2, 3]}, '$col1.col11']},
+                        {'$eq': ['$col1.col11', {'col111': [1, 2, 3]}]}
+                    ]
                 }
             },
             'projection': {'_id': '$_id', 'col1': '$col1', 'col2': '$col2'},
@@ -2235,7 +2274,6 @@ class TestQueryJsonOp(ResultQuery):
         self.assertEqual(actual, self.ans)
 
         conn.reset_mock()
-
 
 
 class TestQueryLen(ResultQuery):

@@ -683,13 +683,25 @@ class JSONOp(_Op):
 
         field = parse_field(self._identifier.field, self._identifier.is_array_len, with_dollar=False)
         field_with_dollar = parse_field(self._identifier.field, self._identifier.is_array_len, with_dollar=True)
+        field_parts = self._identifier.field.rsplit('.', 1)
         if self._identifier.is_array_len and operator not in ['$exact']:
             raise SQLDecodeError(
                 f"Attempting to use array length ({self._identifier}) with {operator} which doesn't make sense.")
 
         if operator == '$exact':
             op = '$eq' if not is_negated else '$ne'
-            return {'$expr': {op: [field_with_dollar, right]}}
+            op2 = '$in' if not is_negated else '$nin'
+            if len(field_parts) > 1 and not self._identifier.is_array_len:
+                parent_field = f'${field_parts[0]}'
+                return {'$expr': {
+                    '$cond': [
+                        {'$eq': [{'$type': parent_field}, "array"]},
+                        {op2: [right, field_with_dollar]},
+                        {op: [field_with_dollar, right]}
+                    ]}
+                }
+            else:
+                return {'$expr': {op: [field_with_dollar, right]}}
         elif operator == '$contains':
             if isinstance(right, dict):
                 # https://docs.mongodb.com/manual/tutorial/query-array-of-documents/#a-single-nested-document-meets-multiple-query-conditions-on-nested-fields
