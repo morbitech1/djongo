@@ -1,5 +1,6 @@
 import abc
 import re
+from functools import cached_property
 from typing import Union as U, Iterator, Optional as O, Optional, List
 
 from pymongo import ASCENDING, DESCENDING
@@ -152,7 +153,7 @@ class SQLIdentifier(AliasableToken):
     def __init__(self, *args):
         super().__init__(*args)
 
-    @property
+    @cached_property
     def field(self) -> str:
         if self.given_table in self.query.token_alias.aliased_names:
             return self.given_table
@@ -162,7 +163,7 @@ class SQLIdentifier(AliasableToken):
         else:
             return f'{self.table}.{self.column}'
 
-    @property
+    @cached_property
     def table(self) -> str:
         name = self.given_table
         alias2token = self.token_alias.alias2token
@@ -171,19 +172,19 @@ class SQLIdentifier(AliasableToken):
         except KeyError:
             return name
 
-    @property
+    @cached_property
     def given_table(self) -> str:
         name = self._token.get_parent_name()
         if name is None:
-            name = self._parse_token_value()[0]
+            name = self._parse_token_value[0]
 
         if name is None:
             raise SQLDecodeError
         return name
 
-    @property
+    @cached_property
     def column(self) -> str:
-        name = self._parse_token_value()[1]
+        name = self._parse_token_value[1]
         if name is None:
             raise SQLDecodeError
         return name
@@ -192,6 +193,7 @@ class SQLIdentifier(AliasableToken):
         from .operators import parse_field
         return parse_field(self.column, self.is_array_len)
 
+    @cached_property
     def _parse_token_value(self):
         # fix for JSONField accessors (example: a.b.c.d)
         tokens = [f for f in self.unaliased.split('.')]
