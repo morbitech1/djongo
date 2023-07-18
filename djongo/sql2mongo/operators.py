@@ -182,6 +182,7 @@ class LikeOp(_BinaryOp):
         to_match = to_match.replace('\\\\_', '_')
         # Like expression special character + ensure normal % is handled properly
         to_match = '%'.join(s.replace('%', '.*') for s in to_match.split('\\\\%'))
+        to_match = f"^{to_match}$"
         self._regex = to_match
 
     def to_mongo(self):
@@ -216,6 +217,11 @@ class RegexpOp(_BinaryOp):
 
     def to_mongo(self):
         return {self._field: {'$regex': self._regex}}
+
+
+class iRegexpOp(RegexpOp):
+    def to_mongo(self):
+        return {self._field: {'$regex': self._regex, '$options': 'im'}}
 
 
 class IsOp(_BinaryOp):
@@ -417,8 +423,10 @@ class _StatementParser:
                 statement.skip(1)
             else:
                 op = NotOp(**kw)
-        elif tok.value.endswith("REGEXP"):
+        elif tok.value.endswith('eREGEXP'):
             op = RegexpOp(**kw)
+        elif tok.value.endswith('iREGEXP'):
+            op = iRegexpOp(**kw)
 
         elif isinstance(tok, Comparison) and 'iLIKE' in tok.normalized:
             op = iLikeOp(**kw)
