@@ -4,7 +4,7 @@ from collections import defaultdict
 from itertools import chain
 
 from sqlparse import tokens
-from sqlparse.sql import Token, Parenthesis, Comparison, IdentifierList, Identifier, Function
+from sqlparse.sql import Token, Parenthesis, Comparison, IdentifierList, Identifier
 
 from djongo.utils import encode_key
 from . import query
@@ -14,11 +14,15 @@ from ..exceptions import SQLDecodeError
 
 
 def re_index(value: str):
-    match = re.match(r'%\(([0-9]+)\)s', value, flags=re.IGNORECASE)
+    match = list(re.finditer(r'%\(([0-9]+)\)s', value, flags=re.IGNORECASE))
+
     if match:
-        index = int(match.group(1))
+        if len(match) == 1:
+            index = int(match[0].group(1))
+        else:
+            index = [int(x.group(1)) for x in match]
     else:
-        match = re.match(r'NULL', value, flags=re.IGNORECASE)
+        match = re.match(r'NULL|true', value, flags=re.IGNORECASE)
         if not match:
             raise SQLDecodeError('Unable to find placeholder or NULL')
         index = None
@@ -764,3 +768,5 @@ OPERATOR_PRECEDENCE = {
     'OR': 1,
     'generic': 0
 }
+
+AND_OR_NOT_SEPARATOR = 3
