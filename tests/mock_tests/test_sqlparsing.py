@@ -519,13 +519,12 @@ class TestAlterTableDrop(AlterTable):
 
         calls = [
             call('table'),
-            call().update(
+            call().update_many(
                 {},
                 {'$unset': {'c': ''}},
-                multi=True
             ),
             call('__schema__'),
-            call().update(
+            call().update_one(
                 {'name': 'table'},
                 {'$unset': {'fields.c': ''}}
             )
@@ -558,10 +557,9 @@ class TestAlterTableRename(AlterTable):
         self.exe()
         calls = [
             call('table'),
-            call().update(
+            call().update_many(
                 {},
                 {'$rename': {'b': 'c'}},
-                multi=True
             )
         ]
         self.db.__getitem__.assert_has_calls(calls)
@@ -601,15 +599,14 @@ class TestAlterTableAddColumn(AlterTableAdd):
         calls = [
             call('table'),
 
-            call().update({'$or': [
+            call().update_many({'$or': [
                 {'c': {'$exists': False}},
                 {'c': None}]},
-                {'$set': {'c': 2}},
-                multi=True),
+                {'$set': {'c': 2}}),
 
             call('__schema__'),
 
-            call().update({'name': 'table'},
+            call().update_one({'name': 'table'},
                           {'$set': {
                               'fields.c': {
                                   'type_code': 'integer'}}})

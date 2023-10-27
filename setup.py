@@ -1,3 +1,5 @@
+# THIS FILE WAS CHANGED ON - 19 Aug 2022
+
 from distutils.core import setup
 from setuptools import find_packages
 import os
@@ -57,7 +59,7 @@ and others... fully supported.
 Important links
 ---------------
 
-* `Full Documentation <https://nesdis.github.io/djongo/>`_
+* `Full Documentation <https://www.djongomapper.com/>`_
 * `Source code <https://github.com/morbitech1/djongo>`_
 """
 
@@ -81,10 +83,9 @@ def find_version(*file_paths):
 
 
 install_requires = [
-    'sqlparse>=0.4.1',
-    'pymongo>=3.2.0',
+    'sqlparse==0.4.2',
+    'pymongo>=3.6.0',
     'django>=2.1',
-    'dnspython>=2.0',
 ]
 
 if sys.version_info.major == 3 and sys.version_info.minor < 7:
@@ -97,8 +98,8 @@ setup(
     packages=packages,
     url='https://github.com/morbitech1/djongo',
     license='AGPL',
-    author='nesdis',
-    author_email='nesdis@gmail.com',
+    author='doableware',
+    author_email='support@doableware.com',
     description=(
         'Driver for allowing Django to use MongoDB as the database backend.'),
     install_requires=install_requires,
