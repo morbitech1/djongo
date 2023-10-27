@@ -4,7 +4,7 @@ from collections import defaultdict
 from itertools import chain
 
 from sqlparse import tokens
-from sqlparse.sql import Token, Parenthesis, Comparison, IdentifierList, Identifier
+from sqlparse.sql import Token, Parenthesis, Comparison, IdentifierList, Identifier, Function
 
 from djongo.utils import encode_key
 from . import query
